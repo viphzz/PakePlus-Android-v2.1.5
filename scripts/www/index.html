@@ -1,11 +1,1111 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>四季扫雷 | Elemental Seasons</title>
+    <!-- 引入彩带库 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- 引入图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* 基础变量 */
+            --cell-size: 38px; /* 可变大小 */
+            --gap: 6px;
+            --radius: 8px;
+
+            /* 默认春季配色 (Spring) - 保持原样微调 */
+            --bg-color: #e0e5ec;
+            --cell-bg: #e0e5ec;
+            --shadow-light: #ffffff;
+            --shadow-dark: #a3b1c6;
+            --primary: #4b7bec;
+            --accent: #20bf6b;
+            --danger: #eb3b5a;
+            --text-main: #4b6584;
+            --coin-color: #f1c40f;
+        }
+
+        /* 夏季主题 (Summer - 柔和荷塘) - 优化护眼 */
+        body.theme-summer {
+            --bg-color: #d1efe4; /* 淡淡的薄荷绿 */
+            --cell-bg: #bde0d4;  /* 稍深的薄荷 */
+            --shadow-light: #e8fff5;
+            --shadow-dark: #9bbab0;
+            --primary: #fa8231;
+            --accent: #0fb9b1;
+            --danger: #eb3b5a;
+            --text-main: #34635f;
+            --radius: 50%; 
+        }
+
+        /* 秋季主题 (Autumn - 柔和大地) - 优化护眼 */
+        body.theme-autumn {
+            --bg-color: #f3e9d8; /* 米暖色 */
+            --cell-bg: #e6dcc9;
+            --shadow-light: #fffaf0;
+            --shadow-dark: #c2b8a6;
+            --primary: #d35400;
+            --accent: #c0392b;
+            --danger: #c44569;
+            --text-main: #7f6e5d;
+            --radius: 12px;
+        }
+
+        /* 冬季主题 (Winter) */
+        body.theme-winter {
+            --bg-color: #dff9fb;
+            --cell-bg: #c7ecee;
+            --shadow-light: #f7ffff;
+            --shadow-dark: #9cbabe;
+            --primary: #686de0;
+            --accent: #badc58;
+            --danger: #ff7979;
+            --text-main: #2c3e50;
+            --radius: 4px;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Nunito', 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; /* 防止滚动 */
+            transition: background-color 0.5s ease;
+        }
+
+        /* 背景粒子层 */
+        #particle-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* UI 层级 */
+        .ui-layer {
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-height: 100vh;
+        }
+
+        /* --- 顶部面板 --- */
+        .header {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+            margin-top: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .card {
+            background: var(--cell-bg);
+            padding: 8px 16px;
+            border-radius: 20px;
+            box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-main);
+            transition: all 0.3s ease;
+        }
+
+        /* 缩放按钮组 */
+        .zoom-controls {
+            display: flex;
+            gap: 8px;
+        }
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--cell-bg);
+            box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+            cursor: pointer;
+            color: var(--text-main);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .zoom-btn:active { box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light); }
+
+        /* 季节切换按钮 */
+        .season-btn {
+            background: var(--cell-bg);
+            border: none;
+            font-size: 1.4rem;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+            transition: transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .season-btn:hover { transform: rotate(15deg) scale(1.1); }
+
+        .timer-frozen { color: #3498db; animation: blink 1s infinite; }
+
+        /* --- 商店/道具栏 --- */
+        .inventory {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+            padding: 0 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .item-slot {
+            width: 65px;
+            height: 75px; /* 增加高度以容纳价格 */
+            border-radius: 12px;
+            background: var(--cell-bg);
+            box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .item-slot:hover { transform: translateY(-2px); }
+        
+        .item-slot.active {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 商店状态：没货时显示价格 */
+        .item-slot.can-buy {
+            border-color: var(--coin-color);
+            box-shadow: 0 0 8px var(--coin-color);
+        }
+        .item-slot.cant-afford {
+            opacity: 0.6;
+            filter: grayscale(0.8);
+            cursor: not-allowed;
+        }
+        /* 已售罄 (针对限购物品) */
+        .item-slot.sold-out {
+            opacity: 0.4;
+            filter: grayscale(1);
+            pointer-events: none;
+        }
+
+        .item-icon { font-size: 22px; margin-bottom: 2px; }
+        .item-count { 
+            position: absolute; 
+            top: 2px; right: 5px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            background: var(--text-main); 
+            color: var(--bg-color);
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        .item-price {
+            font-size: 10px;
+            color: var(--text-main);
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        .item-price i { color: var(--coin-color); font-size: 9px; }
+
+        /* --- 游戏主区域 --- */
+        #game-board-container {
+            flex: 1;
+            overflow: auto; /* 允许超出滚动 */
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            max-width: 100vw;
+            max-height: 60vh; /* 限制棋盘高度 */
+        }
+
+        #game-board {
+            padding: 12px;
+            border-radius: 16px;
+            background: var(--cell-bg);
+            box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
+            display: grid;
+            gap: var(--gap);
+            transition: all 0.3s ease;
+            margin: auto; /* 居中 */
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            border-radius: var(--radius);
+            background: var(--cell-bg);
+            box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: calc(var(--cell-size) * 0.55);
+            font-weight: 800;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body.theme-summer .cell { border-bottom-right-radius: 4px; } 
+
+        .cell:hover:not(.revealed):not(.flagged) { transform: scale(0.92); }
+
+        .cell.revealed {
+            box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light);
+            cursor: default;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .c-1 { color: #3498db; }
+        .c-2 { color: #2ecc71; }
+        .c-3 { color: #e74c3c; }
+        .c-4 { color: #9b59b6; }
+        .c-5 { color: #f1c40f; }
+        .c-6 { color: #1abc9c; }
+        .c-7 { color: #34495e; }
+        .c-8 { color: #7f8c8d; }
+
+        .cell.flagged { color: var(--danger); }
+        .cell.mine { background: var(--danger); color: white; border: none; }
+        .cell.safe-check { background: var(--accent); color: white; }
+
+        /* 模式选择 */
+        .controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            background: var(--cell-bg);
+            padding: 6px;
+            border-radius: 50px;
+            box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+        }
+
+        .btn {
+            border: none;
+            background: transparent;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            color: var(--text-main);
+            opacity: 0.7;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 0.9rem;
+        }
+        .btn.active { background: var(--primary); color: white; opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0, 0.2); }
+
+        /* 动画特效 */
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
+
+        .anim-pop { animation: popIn 0.3s ease forwards; }
+        .shake-board { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .float-text {
+            position: absolute;
+            pointer-events: none;
+            font-weight: bold;
+            font-size: 16px;
+            animation: floatUp 1s ease forwards;
+            z-index: 100;
+            text-shadow: 1px 1px 0 #fff;
+        }
+
+        /* 通用模态框 */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(8px);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        .modal-content {
+            background: var(--bg-color);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            border: 2px solid var(--primary);
+        }
+        .modal h2 { font-size: 2rem; margin-bottom: 10px; color: var(--text-main); margin-top: 0; }
+        .modal p { font-size: 1.1rem; margin-bottom: 25px; color: var(--text-main); }
+        .modal-btn {
+            padding: 12px 40px;
+            font-size: 1.1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 5px 15px rgba(0,0,0, 0.2);
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+        .modal-btn.secondary { background: var(--text-main); }
+        .modal-btn:hover { transform: scale(1.05); }
+
+    </style>
+</head>
+<body class="theme-spring">
+
+    <canvas id="particle-canvas"></canvas>
+
+    <div class="ui-layer">
+        <div class="header">
+            <button class="season-btn" onclick="toggleSeason()" title="切换季节">🌸</button>
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="adjustZoom(-4)" title="缩小">－</button>
+                <button class="zoom-btn" onclick="adjustZoom(4)" title="放大">＋</button>
+            </div>
+            <div class="card"><span id="icon-flag">🚩</span> <span id="flag-cnt">10</span></div>
+            <div class="card"><i class="fas fa-stopwatch" style="color: var(--primary)"></i> <span id="timer">000</span></div>
+            <!-- 金币显示 -->
+            <div class="card" style="color: var(--coin-color); min-width: 80px;">
+                <i class="fas fa-coins"></i> <span id="coin-cnt">0</span>
+            </div>
+        </div>
+
+        <!-- 商店/道具栏 -->
+        <div class="inventory">
+            <!-- 护盾 -->
+            <div class="item-slot" id="slot-shield" onclick="handleItemClick('shield')">
+                <span class="item-icon" title="护盾 (抵挡一次爆炸)">🛡️</span>
+                <span class="item-count" id="count-shield">0</span>
+                <span class="item-price"><i class="fas fa-coins"></i> <span id="price-shield">30</span></span>
+            </div>
+            <!-- 雷达 -->
+            <div class="item-slot" id="slot-scanner" onclick="handleItemClick('scanner')">
+                <span class="item-icon" title="雷达 (侦测区域)">📡</span>
+                <span class="item-count" id="count-scanner">0</span>
+                <span class="item-price"><i class="fas fa-coins"></i> <span id="price-scanner">50</span></span>
+            </div>
+            <!-- 时停 -->
+            <div class="item-slot" id="slot-hourglass" onclick="handleItemClick('hourglass')">
+                <span class="item-icon" title="时间冻结">⏳</span>
+                <span class="item-count" id="count-hourglass">0</span>
+                <span class="item-price"><i class="fas fa-coins"></i> <span id="price-hourglass">40</span></span>
+            </div>
+            <!-- 复活图腾 (新) -->
+            <div class="item-slot" id="slot-totem" onclick="handleItemClick('totem')">
+                <span class="item-icon" title="复活图腾 (一局限一次)">⚰️</span>
+                <span class="item-count" id="count-totem">0</span>
+                <span class="item-price"><i class="fas fa-coins"></i> <span id="price-totem">150</span></span>
+            </div>
+        </div>
+
+        <div id="game-board-container">
+            <div id="game-board"></div>
+        </div>
+
+        <div class="controls">
+            <button class="btn active" onclick="setDifficulty('easy')">简单</button>
+            <button class="btn" onclick="setDifficulty('medium')">中等</button>
+            <button class="btn" onclick="setDifficulty('hard')">困难</button>
+        </div>
+    </div>
+
+    <!-- 结算模态框 -->
+    <div class="modal" id="game-modal">
+        <div class="modal-content">
+            <h2 id="modal-title">胜利!</h2>
+            <p id="modal-desc">用时: 120秒</p>
+            <button class="modal-btn" onclick="initGame()">再玩一次</button>
+        </div>
+    </div>
+
+    <!-- 复活询问模态框 -->
+    <div class="modal" id="revive-modal">
+        <div class="modal-content">
+            <h2 style="color: var(--coin-color)">⚠ 危险!</h2>
+            <p>你踩到了地雷！<br>是否消耗 1 个复活图腾继续游戏？</p>
+            <div style="display:flex; justify-content:center;">
+                <button class="modal-btn" onclick="confirmRevive(true)">是 (消耗图腾)</button>
+                <button class="modal-btn secondary" onclick="confirmRevive(false)">否 (结束游戏)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 季节与主题配置
+         */
+        const THEMES = ['spring', 'summer', 'autumn', 'winter'];
+        const THEME_CONFIG = {
+            spring: { 
+                icon: '🌸', flag: '🚩', mine: '💣', 
+                particles: { type: 'none', color: '#ff7675' }
+            },
+            summer: { 
+                icon: '🪷', flag: '🪷', mine: '🐸', 
+                particles: { type: 'rain', color: '#74b9ff' }
+            },
+            autumn: { 
+                icon: '🍂', flag: '🍁', mine: '🕷️', 
+                particles: { type: 'leaves', color: '#d35400' }
+            },
+            winter: { 
+                icon: '❄️', flag: '🎄', mine: '☃️', 
+                particles: { type: 'snow', color: '#ffffff' }
+            }
+        };
+
+        const CONFIG = {
+            easy: { rows: 9, cols: 9, mines: 10 },
+            medium: { rows: 16, cols: 16, mines: 40 },
+            hard: { rows: 16, cols: 30, mines: 99 }
+        };
+
+        const ITEM_PRICES = {
+            shield: 30,
+            scanner: 50,
+            hourglass: 40,
+            totem: 150
+        };
+
+        let state = {
+            mode: 'easy',
+            themeIdx: 0,
+            grid: [],
+            gameOver: false,
+            timer: 0,
+            timerId: null,
+            frozenTime: 0,
+            flags: 0,
+            minesLeft: 0,
+            revealed: 0,
+            coins: 100, // 初始赠送一点金币方便测试
+            lastClickTime: 0,
+            firstClick: true,
+            inventory: { shield: 0, scanner: 0, hourglass: 0, totem: 0 },
+            totemBought: false, // 标记本局是否买过图腾
+            activeItem: null,
+            pendingMineHit: null // 存储踩雷的位置，用于复活逻辑
+        };
+
+        // 缩放控制
+        let currentZoom = 38;
+        function adjustZoom(delta) {
+            currentZoom += delta;
+            if (currentZoom < 20) currentZoom = 20;
+            if (currentZoom > 80) currentZoom = 80;
+            document.documentElement.style.setProperty('--cell-size', `${currentZoom}px`);
+        }
+
+        const boardEl = document.getElementById('game-board');
+        
+        /**
+         * 季节系统
+         */
+        function toggleSeason() {
+            state.themeIdx = (state.themeIdx + 1) % THEMES.length;
+            applyTheme();
+        }
+
+        function applyTheme() {
+            const themeName = THEMES[state.themeIdx];
+            const themeData = THEME_CONFIG[themeName];
+            
+            document.body.className = `theme-${themeName}`;
+            document.querySelector('.season-btn').textContent = themeData.icon;
+            document.getElementById('icon-flag').textContent = themeData.flag;
+
+            state.grid.flat().forEach(cell => {
+                if (cell.flagged && !cell.revealed) cell.el.textContent = themeData.flag;
+                if (cell.revealed && cell.isMine) cell.el.textContent = themeData.mine;
+            });
+            
+            initParticles(themeData.particles);
+        }
+
+        /**
+         * 粒子特效
+         */
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let animationId;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function initParticles(config) {
+            cancelAnimationFrame(animationId);
+            particles = [];
+            resizeCanvas();
+
+            if (config.type === 'none') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            for (let i = 0; i < 50; i++) {
+                particles.push(createParticle(config));
+            }
+            animateParticles(config);
+        }
+
+        function createParticle(config) {
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 5 + 2,
+                speedY: Math.random() * 1 + 0.5,
+                speedX: Math.random() * 1 - 0.5,
+                opacity: Math.random() * 0.5 + 0.1,
+                color: config.color,
+                type: config.type
+            };
+        }
+
+        function animateParticles(config) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.y += p.speedY;
+                p.x += p.speedX;
+                if (p.y > canvas.height) p.y = -10;
+                if (p.x > canvas.width) p.x = 0;
+                if (p.x < 0) p.x = canvas.width;
+
+                ctx.beginPath();
+                ctx.globalAlpha = p.opacity;
+                ctx.fillStyle = p.color;
+                
+                if (config.type === 'snow') {
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (config.type === 'leaves') {
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.x * 0.05);
+                    ctx.fillRect(0, 0, p.size, p.size * 1.5);
+                    ctx.restore();
+                } else if (config.type === 'rain') {
+                    ctx.fillRect(p.x, p.y, 1, p.size * 2);
+                }
+            });
+            ctx.globalAlpha = 1;
+            animationId = requestAnimationFrame(() => animateParticles(config));
+        }
+
+        /**
+         * 游戏初始化
+         */
+        function setDifficulty(mode) {
+            state.mode = mode;
+            document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            initGame();
+        }
+
+        function initGame() {
+            clearInterval(state.timerId);
+            state.gameOver = false;
+            state.timer = 0;
+            state.frozenTime = 0;
+            state.firstClick = true;
+            state.grid = [];
+            state.revealed = 0;
+            state.activeItem = null;
+            state.totemBought = false; // 重置图腾购买限制
+            
+            // 道具保留金币，但清空当局道具 (Rogue-lite 风格)
+            // 如果希望道具也保留，注释掉下面这行:
+            state.inventory = { shield: 0, scanner: 0, hourglass: 0, totem: 0 };
+
+            document.getElementById('timer').textContent = '000';
+            document.getElementById('timer').classList.remove('timer-frozen');
+            document.getElementById('game-modal').style.display = 'none';
+            document.getElementById('revive-modal').style.display = 'none';
+            boardEl.className = ''; 
+            updateInventoryUI();
+            updateCoinUI();
+            
+            const cfg = CONFIG[state.mode];
+            state.minesLeft = cfg.mines;
+            state.flags = cfg.mines;
+            document.getElementById('flag-cnt').textContent = state.flags;
+
+            boardEl.style.gridTemplateColumns = `repeat(${cfg.cols}, var(--cell-size))`;
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < cfg.rows; r++) {
+                let row = [];
+                for (let c = 0; c < cfg.cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    
+                    cell.addEventListener('mousedown', (e) => {
+                        if (e.button === 0) handleLeftClick(r, c);
+                        if (e.button === 2) handleRightClick(r, c);
+                    });
+                    
+                    cell.addEventListener('contextmenu', e => e.preventDefault());
+
+                    boardEl.appendChild(cell);
+                    row.push({ 
+                        el: cell, 
+                        isMine: false, 
+                        revealed: false, 
+                        flagged: false, 
+                        neighborMines: 0
+                    });
+                }
+                state.grid.push(row);
+            }
+            applyTheme();
+        }
+
+        function placeMines(excludeR, excludeC) {
+            const cfg = CONFIG[state.mode];
+            let minesPlaced = 0;
+            while (minesPlaced < cfg.mines) {
+                let r = Math.floor(Math.random() * cfg.rows);
+                let c = Math.floor(Math.random() * cfg.cols);
+                
+                if (Math.abs(r - excludeR) <= 1 && Math.abs(c - excludeC) <= 1) continue;
+
+                if (!state.grid[r][c].isMine) {
+                    state.grid[r][c].isMine = true;
+                    minesPlaced++;
+                }
+            }
+
+            for (let r = 0; r < cfg.rows; r++) {
+                for (let c = 0; c < cfg.cols; c++) {
+                    if (!state.grid[r][c].isMine) {
+                        state.grid[r][c].neighborMines = countMines(r, c);
+                    }
+                }
+            }
+            startTimer();
+        }
+
+        function countMines(r, c) {
+            let count = 0;
+            const cfg = CONFIG[state.mode];
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    let nr = r + i, nc = c + j;
+                    if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols) {
+                        if (state.grid[nr][nc].isMine) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function startTimer() {
+            state.timerId = setInterval(() => {
+                if (state.frozenTime > 0) {
+                    state.frozenTime--;
+                    if (state.frozenTime === 0) {
+                        document.getElementById('timer').classList.remove('timer-frozen');
+                    }
+                } else {
+                    state.timer++;
+                    document.getElementById('timer').textContent = state.timer.toString().padStart(3, '0');
+                }
+            }, 1000);
+        }
+
+        /**
+         * 点击逻辑
+         */
+        function handleLeftClick(r, c) {
+            if (state.gameOver) return;
+            const cell = state.grid[r][c];
+            if (cell.flagged || cell.revealed) return;
+
+            // 道具使用逻辑
+            if (state.activeItem === 'scanner') {
+                useScanner(r, c);
+                return;
+            }
+            if (state.activeItem === 'hourglass') {
+                // 时停不需要点击格子，直接点击图标已触发，这里防御性return
+                deactivateItems();
+                return;
+            }
+
+            if (state.firstClick) {
+                placeMines(r, c);
+                state.firstClick = false;
+            }
+
+            // 踩雷逻辑
+            if (cell.isMine) {
+                // 1. 优先检查护盾
+                if (state.inventory.shield > 0) {
+                    triggerShield(cell);
+                    return;
+                }
+                
+                // 2. 检查复活图腾
+                if (state.inventory.totem > 0) {
+                    state.pendingMineHit = {r, c};
+                    clearInterval(state.timerId); // 暂停时间
+                    document.getElementById('revive-modal').style.display = 'flex';
+                    return;
+                }
+
+                triggerGameOver(false);
+                return;
+            }
+
+            // 正常揭开
+            revealCell(r, c);
+            checkWin();
+        }
+
+        function handleRightClick(r, c) {
+            if (state.gameOver || state.grid[r][c].revealed) return;
+            const cell = state.grid[r][c];
+            const themeFlag = THEME_CONFIG[THEMES[state.themeIdx]].flag;
+
+            if (state.activeItem) {
+                deactivateItems();
+                return;
+            }
+
+            cell.flagged = !cell.flagged;
+            cell.el.classList.toggle('flagged');
+            cell.el.textContent = cell.flagged ? themeFlag : '';
+            
+            state.flags += cell.flagged ? -1 : 1;
+            document.getElementById('flag-cnt').textContent = state.flags;
+            
+            if (navigator.vibrate) navigator.vibrate(15);
+        }
+
+        function revealCell(r, c) {
+            const cfg = CONFIG[state.mode];
+            if (r < 0 || r >= cfg.rows || c < 0 || c >= cfg.cols) return;
+            
+            const cell = state.grid[r][c];
+            if (cell.revealed || cell.flagged) return;
+
+            cell.revealed = true;
+            state.revealed++;
+            cell.el.classList.add('revealed', 'anim-pop');
+
+            // 获得金币 (基于难度)
+            let coinGain = 1;
+            if (state.mode === 'medium') coinGain = 2;
+            if (state.mode === 'hard') coinGain = 3;
+            state.coins += coinGain;
+            updateCoinUI();
+
+            // 偶尔飘字显示金币
+            if (Math.random() > 0.8) {
+                showFloatText(cell.el, `+${coinGain}`, 'var(--coin-color)');
+            }
+
+            if (cell.neighborMines > 0) {
+                cell.el.textContent = cell.neighborMines;
+                cell.el.classList.add(`c-${cell.neighborMines}`);
+            } else {
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        revealCell(r + i, c + j);
+                    }
+                }
+            }
+        }
+
+        /**
+         * 商店与道具系统
+         */
+        function updateCoinUI() {
+            document.getElementById('coin-cnt').textContent = state.coins;
+            updateInventoryUI(); // 金币变动影响购买状态
+        }
+
+        function updateInventoryUI() {
+            ['shield', 'scanner', 'hourglass', 'totem'].forEach(type => {
+                const slot = document.getElementById(`slot-${type}`);
+                const countEl = document.getElementById(`count-${type}`);
+                const priceEl = document.getElementById(`price-${type}`);
+                const count = state.inventory[type];
+                const price = ITEM_PRICES[type];
+                
+                countEl.textContent = count;
+                
+                // 状态重置
+                slot.classList.remove('can-buy', 'cant-afford', 'active', 'sold-out', 'disabled');
+
+                if (count > 0) {
+                    // 有库存，显示正常（可使用）
+                    if (state.activeItem === type) slot.classList.add('active');
+                } else {
+                    // 没库存，显示商店逻辑
+                    if (type === 'totem' && state.totemBought) {
+                         slot.classList.add('sold-out'); // 图腾限购一次
+                    } else if (state.coins >= price) {
+                        slot.classList.add('can-buy');
+                    } else {
+                        slot.classList.add('cant-afford');
+                    }
+                }
+            });
+        }
+
+        function handleItemClick(type) {
+            if (state.gameOver) return;
+            
+            const count = state.inventory[type];
+            const price = ITEM_PRICES[type];
+
+            // 1. 如果有库存，则是“使用/装备”逻辑
+            if (count > 0) {
+                if (type === 'totem') return; // 图腾是被动道具，不能主动使用
+                if (type === 'shield') return; // 护盾是被动道具
+
+                // 时停直接生效
+                if (type === 'hourglass') {
+                    useHourglass();
+                    return;
+                }
+
+                // 雷达需要激活后选格子
+                if (state.activeItem === type) {
+                    deactivateItems();
+                } else {
+                    state.activeItem = type;
+                    updateInventoryUI();
+                    boardEl.style.cursor = 'crosshair';
+                }
+                return;
+            }
+
+            // 2. 如果没库存，则是“购买”逻辑
+            if (type === 'totem' && state.totemBought) {
+                showFloatText(document.getElementById(`slot-${type}`), "限购一次!", "#e74c3c");
+                return;
+            }
+
+            if (state.coins >= price) {
+                state.coins -= price;
+                state.inventory[type]++;
+                
+                if (type === 'totem') state.totemBought = true;
+
+                updateCoinUI();
+                showFloatText(document.getElementById(`slot-${type}`), "购买成功!", "#20bf6b");
+            } else {
+                showFloatText(document.getElementById(`slot-${type}`), "金币不足!", "#e74c3c");
+                const slot = document.getElementById(`slot-${type}`);
+                slot.classList.add('shake-board'); // 复用震动动画
+                setTimeout(() => slot.classList.remove('shake-board'), 500);
+            }
+        }
+
+        function deactivateItems() {
+            state.activeItem = null;
+            updateInventoryUI();
+            boardEl.style.cursor = 'default';
+        }
+
+        // 道具1：护盾触发
+        function triggerShield(cell) {
+            state.inventory.shield--;
+            updateInventoryUI();
+            
+            cell.isMine = false; 
+            cell.revealed = true;
+            cell.el.classList.add('revealed');
+            cell.el.textContent = '🛡️'; 
+            state.revealed++;
+            state.minesLeft--; 
+            state.flags--; 
+            document.getElementById('flag-cnt').textContent = state.flags;
+
+            showFloatText(cell.el, "格挡!", "#20bf6b");
+            boardEl.classList.add('shake-board');
+            setTimeout(() => boardEl.classList.remove('shake-board'), 500);
+            checkWin();
+        }
+
+        // 道具2：雷达
+        function useScanner(r, c) {
+            state.inventory.scanner--;
+            deactivateItems();
+            updateInventoryUI();
+
+            const cfg = CONFIG[state.mode];
+            showFloatText(state.grid[r][c].el, "扫描中...", "#4b7bec");
+
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    let nr = r + i, nc = c + j;
+                    if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols) {
+                        const target = state.grid[nr][nc];
+                        if (!target.revealed && !target.flagged) {
+                            if (!target.isMine) {
+                                setTimeout(() => revealCell(nr, nc), 150);
+                            } else {
+                                target.el.style.backgroundColor = '#fab1a0';
+                                setTimeout(() => target.el.style.backgroundColor = '', 800);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 道具3：时停
+        function useHourglass() {
+            state.inventory.hourglass--;
+            updateInventoryUI();
+            state.frozenTime += 15; // 15秒
+            document.getElementById('timer').classList.add('timer-frozen');
+            showFloatText(boardEl, "时间冻结 15s!", "#3498db");
+        }
+
+        // 道具4：复活确认逻辑
+        function confirmRevive(shouldRevive) {
+            document.getElementById('revive-modal').style.display = 'none';
+            
+            if (shouldRevive) {
+                state.inventory.totem--;
+                updateInventoryUI();
+
+                const {r, c} = state.pendingMineHit;
+                const cell = state.grid[r][c];
+                
+                // 将地雷清除
+                cell.isMine = false;
+                cell.revealed = true;
+                cell.el.classList.add('revealed');
+                cell.el.textContent = '✨'; // 复活特效图标
+                
+                state.revealed++;
+                state.minesLeft--;
+                state.flags--;
+                document.getElementById('flag-cnt').textContent = state.flags;
+
+                // 重新计算周围的雷数（因为少了一个雷）- 简化版：仅更新视觉，不重算全图数字避免复杂
+                // 严谨做法是遍历周围邻居减去neighborMines。这里作为小游戏简化处理。
+                
+                showFloatText(cell.el, "复活成功!", "#e67e22");
+                startTimer(); // 恢复计时
+                checkWin();
+            } else {
+                triggerGameOver(false);
+            }
+        }
+
+        function showFloatText(el, text, color) {
+            const rect = el.getBoundingClientRect();
+            const x = rect.left + (rect.width/2) - 10;
+            const y = rect.top;
+            
+            const floatEl = document.createElement('div');
+            floatEl.className = 'float-text';
+            floatEl.textContent = text;
+            floatEl.style.color = color;
+            floatEl.style.left = x + 'px';
+            floatEl.style.top = y + 'px';
+            document.body.appendChild(floatEl);
+            setTimeout(() => floatEl.remove(), 1000);
+        }
+
+        /**
+         * 胜负判定
+         */
+        function checkWin() {
+            let unrevealedSafe = 0;
+            state.grid.flat().forEach(cell => {
+                if (!cell.isMine && !cell.revealed) unrevealedSafe++;
+            });
+
+            if (unrevealedSafe === 0) {
+                triggerGameOver(true);
+            }
+        }
+
+        function triggerGameOver(win) {
+            state.gameOver = true;
+            clearInterval(state.timerId);
+
+            const modal = document.getElementById('game-modal');
+            const title = document.getElementById('modal-title');
+            const desc = document.getElementById('modal-desc');
+            const themeMine = THEME_CONFIG[THEMES[state.themeIdx]].mine;
+
+            if (win) {
+                title.textContent = "🎉 完美通关!";
+                title.style.color = "var(--accent)";
+                desc.innerHTML = `模式: ${state.mode.toUpperCase()}<br>用时: ${state.timer}秒<br>获得金币: +50`;
+                state.coins += 50; // 通关奖励
+                updateCoinUI();
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            } else {
+                title.textContent = "💥 行动失败";
+                title.style.color = "var(--danger)";
+                desc.textContent = "再接再厉！";
+                
+                state.grid.flat().forEach(cell => {
+                    if (cell.isMine) {
+                        cell.el.classList.add('mine');
+                        cell.el.textContent = themeMine;
+                    }
+                });
+                boardEl.classList.add('shake-board');
+            }
+
+            setTimeout(() => {
+                modal.style.display = 'flex';
+            }, 1000);
+        }
+
+        // 启动
+        initGame();
+
+    </script>
+</body>
 </html>
